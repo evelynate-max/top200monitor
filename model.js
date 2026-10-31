@@ -1,3 +1,4 @@
+import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js';
 export const MODES=['半托','全托'];
 export const DEPS=['UDP','EU','GLO'];
 export const MODULES={price:'价格与加价率',limits:'限流',stock:'售罄',ads:'广告'};
@@ -10,10 +11,11 @@ const uniq=a=>[...new Set(a)];
 const issueKey=(mod,m,d,g,sku='',st='',source='')=>[mod,m,d,g,sku,st,source].join(':');
 const groups=(a,key)=>{const m=new Map;for(const r of a){const k=key(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);}return m;};
 const maxDate=a=>a.filter(Boolean).sort().at(-1)||null;
-const dateOf=v=>v instanceof Date?v.toISOString().slice(0,10):/^\d{4}-\d\d-\d\d/.test(String(v))?String(v).slice(0,10):null;
+const dateOf=v=>v instanceof Date?String(v.getFullYear())+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0'):/^\d{4}-\d\d-\d\d/.test(String(v))?String(v).slice(0,10):null;
 const hashText=t=>{let n=2166136261;for(const x of t){n^=x.charCodeAt(0);n=Math.imul(n,16777619);}return(n>>>0).toString(16);};
 
 export function normalizeWorkbook(sheets,siteRules,opts={}){
+ const catalog={...(opts.categoryCatalog||{}),...categoryCatalog(sheets)};
  const date=opts.date||new Date().toISOString().slice(0,10),threshold=opts.threshold??.13;
  const complete={limits:false,stock:false,...opts.complete};
  const warnings=[],pools=new Map,details={},byGoods=new Map,ownCats=new Map,shopMap=new Map,shopGlobal=new Map;
@@ -117,9 +119,9 @@ export function normalizeWorkbook(sheets,siteRules,opts={}){
  }
  if(duplicateLimits)addWarn('重复记录',`限流完全重复记录${duplicateLimits}条已去重；不同原因和竞品链接仍分别保留。`);
  if(outsideLimits)addWarn('名单外记录',`${outsideLimits}条限流明细不在对应Top200池，未纳入池内统计。`);
- const result={schemaVersion:1,date,threshold,complete,rows:[...pools.values()],details,warnings:uniq(warnings.map(x=>JSON.stringify(x))).map(x=>JSON.parse(x)),adDates,sourceName:opts.sourceName||'大组日常.xlsx',sourceHash:opts.sourceHash||'',importedAt:new Date().toISOString(),rawCounts,siteRules,priceValues:{}};
+ const result={schemaVersion:2,date,threshold,complete,rows:[...pools.values()],details,warnings:uniq(warnings.map(x=>JSON.stringify(x))).map(x=>JSON.parse(x)),adDates,sourceName:opts.sourceName||'大组日常.xlsx',sourceHash:opts.sourceHash||'',importedAt:new Date().toISOString(),rawCounts,siteRules,priceValues:{}};
  for(const r of priceGroups.values())result.priceValues[r.key]={sell:r.sell,supply:r.supply,markup:r.markup,source:r.source};
- return result;
+ applyPetScope(result,catalog,STAFF_RULES);enrichReadings(result,result.details);return result;
 }
 
 export function compareSnapshot(pack,previous){
@@ -132,7 +134,7 @@ export function compareSnapshot(pack,previous){
    issue.change=!previous?'首次发现':ruleChanged&&issue.module==='price'?'规则变更':prior&&prior.state!=='恢复'?'持续':sameDay?'本日发现':'新增';issue.state='存在';
    if(issue.change==='新增')p.newCount++;index[issue.key]=issue;
   }
-  for(const r of pack.details[p.key].prices){const previousPrice=priceBefore[r.key];if(previousPrice){r.sellDelta=r.sell!=null&&previousPrice.sell!=null?r.sell-previousPrice.sell:null;r.supplyDelta=r.supply!=null&&previousPrice.supply!=null?r.supply-previousPrice.supply:null;r.markupDelta=r.markup!=null&&previousPrice.markup!=null?r.markup-previousPrice.markup:null;}}
+  for(const r of (pack.details?.[p.key]?.prices||[])){const previousPrice=priceBefore[r.key];if(previousPrice){r.sellDelta=r.sell!=null&&previousPrice.sell!=null?r.sell-previousPrice.sell:null;r.supplyDelta=r.supply!=null&&previousPrice.supply!=null?r.supply-previousPrice.supply:null;r.markupDelta=r.markup!=null&&previousPrice.markup!=null?r.markup-previousPrice.markup:null;}}
   p.expanded=!!old&&(p.limitSkus>old.limitSkus||p.limitSites>old.limitSites||p.stockSkus>old.stockSkus);p.change=!previous?'基准日':p.newCount?'新增问题':p.expanded?'问题扩大':p.issues.length?'持续问题':'无已检出问题';
  }
  const recovered=[],unverified=[];
@@ -145,7 +147,7 @@ export function compareSnapshot(pack,previous){
  pack.issueIndex=index;pack.recovered=recovered;pack.unverified=unverified;
  const uniqueStocks=new Map;for(const d of Object.values(pack.details))for(const r of d.stock)uniqueStocks.set(r.goods+'|'+r.sku,r);
  pack.stats={pool:pack.rows.length,goods:uniq(pack.rows.map(r=>r.goods)).length,priceGoods:pack.rows.filter(r=>r.priceCount>0).length,lowGoods:pack.rows.filter(r=>r.lowCount>0).length,limitGoods:pack.rows.filter(r=>r.limitSkus>0).length,stockGoods:uniq([...uniqueStocks.values()].map(r=>r.goods)).length,stockLoss:[...uniqueStocks.values()].reduce((n,r)=>n+(r.loss||0),0),adsGoods:pack.rows.filter(r=>r.ad?.covered).length,adsAlerts:pack.rows.filter(r=>r.issues.some(x=>x.module==='ads')).length,newGoods:pack.rows.filter(r=>r.newCount>0).length,recovered:uniq(recovered.map(r=>r.key)).length,unverified:unverified.length,unmatched:pack.rows.filter(r=>r.identity!=='已核验').length,unassigned:pack.rows.filter(r=>r.owner==='待分配').length};
- pack.fingerprint=hashText(JSON.stringify([pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
+ pack.fingerprint=hashText(JSON.stringify([pack.scopeVersion,pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
 }
 
 export function summarize(pack){const {details,siteRules,priceValues,issueIndex,...rest}=pack;return rest;}
