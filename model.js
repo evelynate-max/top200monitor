@@ -1,4 +1,5 @@
-import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js';
+import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js?v=shouren-20261102';
+import {buildContinuity,assessMarkup,markupAbnormal} from './continuity.js?v=shouren-20261102';
 export const MODES=['半托','全托'];
 export const DEPS=['UDP','EU','GLO'];
 export const MODULES={price:'价格与加价率',limits:'限流',stock:'售罄',ads:'广告'};
@@ -15,9 +16,9 @@ const dateOf=v=>v instanceof Date?String(v.getFullYear())+'-'+String(v.getMonth(
 const hashText=t=>{let n=2166136261;for(const x of t){n^=x.charCodeAt(0);n=Math.imul(n,16777619);}return(n>>>0).toString(16);};
 
 export function normalizeWorkbook(sheets,siteRules,opts={}){
- const catalog={...(opts.categoryCatalog||{}),...categoryCatalog(sheets)};
+ const catalog={...(opts.categoryCatalog||{}),...categoryCatalog(sheets,opts)};
  const date=opts.date||new Date().toISOString().slice(0,10),threshold=opts.threshold??.13;
- const complete={limits:false,stock:false,...opts.complete};
+ const complete={limits:true,stock:true,...opts.complete};
  const warnings=[],pools=new Map,details={},byGoods=new Map,ownCats=new Map,shopMap=new Map,shopGlobal=new Map;
  const rawCounts={},rules=new Map(siteRules.map(r=>[r.mode+'|'+r.site,r]));
  const valid=r=>/^\d+$/.test(ident(r[0]));
@@ -76,7 +77,7 @@ export function normalizeWorkbook(sheets,siteRules,opts={}){
   const p=pools.get(r.productKey),pair=[...r.pairs.values()][0];r.sellRaw=ident(pair[0]);r.supplyRaw=ident(pair[1]);r.sell=num(pair[0]);r.supply=num(pair[1]);r.conflict=r.pairs.size>1;
   r.markup=!r.conflict&&r.sell!=null&&r.supply>0?r.sell/r.supply-1:null;r.key=issueKey('price',p.mode,p.dep,p.goods,r.sku,r.site,r.source);delete r.pairs;
   details[p.key].prices.push(r);
-  if(r.markup!=null&&r.markup<threshold)problem(p,'price',r.sku,r.site,r.source,'加价率低于阈值','中',{markup:r.markup,sell:r.sell,supply:r.supply});
+  r.abnormal=markupAbnormal(r,threshold);if(r.abnormal)problem(p,'price',r.sku,r.site,r.source,'加价率未低于阈值','中',{markup:r.markup,sell:r.sell,supply:r.supply});
   if(r.conflict||r.markup==null)p.warnings.push('价格数据待核');
  }
  const stocks=rows('全托三区top200售罄'),stockSeen=new Map;
@@ -106,7 +107,7 @@ export function normalizeWorkbook(sheets,siteRules,opts={}){
   const candidate=exact?.size===1?[...exact.values()][0]:!exact&&fallback?.size===1?[...fallback.values()][0]:null;
   if(candidate){p.sellerId=candidate.sellerId;p.seller=candidate.seller;p.identity=exact?(candidate.status.includes('人工已确认')?'已核验':'来源关联待核'):'部署区待核';}
   else{p.seller=p.sourceSeller||p.shopName||'待匹配';p.sellerId='unmatched:'+p.dep+':'+(p.shop||p.sourceSellerId||p.goods);p.identity='未匹配';}
-  p.priceCount=d.prices.length;p.lowCount=d.prices.filter(r=>r.markup!=null&&r.markup<threshold).length;p.minMarkup=d.prices.filter(r=>r.markup!=null).reduce((v,r)=>v==null?r.markup:Math.min(v,r.markup),null);
+  p.priceCount=d.prices.length;p.lowCount=d.prices.filter(r=>r.markup!=null&&!r.abnormal).length;p.highCount=d.prices.filter(r=>r.abnormal).length;p.minMarkup=d.prices.filter(r=>r.markup!=null).reduce((v,r)=>v==null?r.markup:Math.min(v,r.markup),null);p.maxMarkup=d.prices.filter(r=>r.markup!=null).reduce((v,r)=>v==null?r.markup:Math.max(v,r.markup),null);
   p.limitSkus=uniq(d.limits.map(r=>r.sku)).length;p.limitSites=uniq(d.limits.map(r=>r.site)).length;p.blocked=uniq(d.limits.filter(r=>r.state.includes('屏蔽')).map(r=>r.sku+'|'+r.site)).length;
   p.stockSkus=d.stock.length;p.stockLoss=d.stock.reduce((s,r)=>s+(r.loss||0),0);p.stockDays=Math.max(0,...d.stock.map(r=>r.days||0));
   if(d.ads.length){const latest=adDates[p.dep],current=d.ads.filter(r=>r.date===latest),last=maxDate(d.ads.map(r=>r.date));const one=current.length===1?current[0]:null;
@@ -120,11 +121,13 @@ export function normalizeWorkbook(sheets,siteRules,opts={}){
  if(duplicateLimits)addWarn('重复记录',`限流完全重复记录${duplicateLimits}条已去重；不同原因和竞品链接仍分别保留。`);
  if(outsideLimits)addWarn('名单外记录',`${outsideLimits}条限流明细不在对应Top200池，未纳入池内统计。`);
  const result={schemaVersion:2,date,threshold,complete,rows:[...pools.values()],details,warnings:uniq(warnings.map(x=>JSON.stringify(x))).map(x=>JSON.parse(x)),adDates,sourceName:opts.sourceName||'大组日常.xlsx',sourceHash:opts.sourceHash||'',importedAt:new Date().toISOString(),rawCounts,siteRules,priceValues:{}};
- for(const r of priceGroups.values())result.priceValues[r.key]={sell:r.sell,supply:r.supply,markup:r.markup,source:r.source};
+ result.markupAssessment='strict-under-threshold-20261102';
+ for(const r of priceGroups.values())result.priceValues[r.key]={sell:r.sell,supply:r.supply,markup:r.markup,source:r.source,links:r.links};
  applyPetScope(result,catalog,STAFF_RULES);enrichReadings(result,result.details);return result;
 }
 
 export function compareSnapshot(pack,previous){
+ if(previous)assessMarkup(previous);
  const before=previous?.issueIndex||Object.fromEntries([...(previous?.rows||[]).flatMap(r=>r.issues||[]),...(previous?.unverified||[])].map(r=>[r.key,r])),index={},priceBefore=previous?.priceValues||{},sameDay=previous?.date===pack.date,ruleChanged=previous&&previous.threshold!==pack.threshold;
  for(const p of pack.rows){
   const old=previous?.rows?.find(r=>r.key===p.key);p.newCount=0;p.expanded=false;
@@ -141,13 +144,14 @@ export function compareSnapshot(pack,previous){
  for(const [key,prior]of Object.entries(before))if(!index[key]&&prior.state!=='恢复'){
   const stillInPool=pack.rows.some(p=>p.key===prior.productKey),price=pack.priceValues[key];
   const ad=pack.rows.find(p=>p.key===prior.productKey)?.ad;
-  const knownNormal=prior.module==='price'?price?.markup!=null&&price.markup>=pack.threshold:prior.module==='limits'?pack.complete.limits:prior.module==='stock'?pack.complete.stock:prior.module==='ads'?ad?.covered&&ad?.roas!=null&&ad?.target>0&&ad.roas>=ad.target:false;
+  const knownNormal=prior.module==='price'?price?.markup!=null&&!markupAbnormal(price,pack.threshold):prior.module==='limits'?pack.complete.limits:prior.module==='stock'?pack.complete.stock:prior.module==='ads'?ad?.covered&&ad?.roas!=null&&ad?.target>0&&ad.roas>=ad.target:false;
   const state=!stillInPool?'退出监控':knownNormal?'恢复':'待核实';const item={...prior,state,lastObserved:pack.date};index[key]=item;if(state==='恢复')recovered.push(item);else if(state==='待核实')unverified.push(item);
  }
  pack.issueIndex=index;pack.recovered=recovered;pack.unverified=unverified;
  const uniqueStocks=new Map;for(const d of Object.values(pack.details))for(const r of d.stock)uniqueStocks.set(r.goods+'|'+r.sku,r);
  pack.stats={pool:pack.rows.length,goods:uniq(pack.rows.map(r=>r.goods)).length,priceGoods:pack.rows.filter(r=>r.priceCount>0).length,lowGoods:pack.rows.filter(r=>r.lowCount>0).length,limitGoods:pack.rows.filter(r=>r.limitSkus>0).length,stockGoods:uniq([...uniqueStocks.values()].map(r=>r.goods)).length,stockLoss:[...uniqueStocks.values()].reduce((n,r)=>n+(r.loss||0),0),adsGoods:pack.rows.filter(r=>r.ad?.covered).length,adsAlerts:pack.rows.filter(r=>r.issues.some(x=>x.module==='ads')).length,newGoods:pack.rows.filter(r=>r.newCount>0).length,recovered:uniq(recovered.map(r=>r.key)).length,unverified:unverified.length,unmatched:pack.rows.filter(r=>r.identity!=='已核验').length,unassigned:pack.rows.filter(r=>r.owner==='待分配').length};
- pack.fingerprint=hashText(JSON.stringify([pack.scopeVersion,pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
+ pack.stats.highGoods=pack.rows.filter(r=>r.highCount>0).length;buildContinuity(pack,previous);
+ pack.fingerprint=hashText(JSON.stringify([pack.scopeVersion,pack.continuity.version,pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
 }
 
 export function summarize(pack){const {details,siteRules,priceValues,issueIndex,...rest}=pack;return rest;}
