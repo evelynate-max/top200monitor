@@ -1,4 +1,4 @@
-import {BRUSH_RULES as RULES,BRUSH_CONFIG as CONFIG} from './brush-config.js?v=shouren-20261102';
+import {BRUSH_RULES as RULES,BRUSH_CONFIG as CONFIG} from './brush-config.js?v=shouren-20261103';
 class Decimal{
  constructor(n,d=1n){if(n instanceof Decimal){this.n=n.n;this.d=n.d;return;}if(typeof n==='bigint'){this.n=n;this.d=d;return;}const s=String(n),parts=s.split('.');if(!/^\d+(\.\d+)?$/.test(s))throw Error('请输入有效的非负数');this.n=BigInt(parts.join(''));this.d=10n**BigInt(parts[1]?.length||0);}
  add(v){v=new Decimal(v);return new Decimal(this.n*v.d+v.n*this.d,this.d*v.d);}
