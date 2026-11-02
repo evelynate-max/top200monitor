@@ -1,4 +1,4 @@
-import {continuityCounts} from './continuity.js?v=shouren-goods-tax-20261103';
+import {continuityCounts} from './continuity.js?v=highest-quote-tax-20261103-1';
 const e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names={limits:'限流',stock:'售罄',price:'加价率异常',ads:'广告异常'};
 export function dailyCell(row,module){const m=row.monitoring?.[module];if(!m)return '<span class="muted">建立监控基线</span>';const label=m.status==='已恢复'&&['limits','stock'].includes(module)?names[module]+'消失':m.status;return `<span class="tag ${m.active?'amber':m.status==='已恢复'?'green':''}">${e(label)}</span>${m.active?`<small>连续检出 ${m.consecutiveDays} 天 · 观测 ${m.observedDays} 个数据日</small>`:''}${m.missingDays?`<small>中间缺 ${m.missingDays} 天，连续天数重新起算</small>`:''}${m.firstSeen?`<small>本轮首次 ${e(m.firstSeen)}</small>`:''}`;}

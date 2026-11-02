@@ -1,5 +1,5 @@
-import {resolveTax} from './tax-rules.js?v=shouren-goods-tax-20261103';
-export const PRICE_POLICY='additive-tax-markup-20261103';
+import {resolveTax} from './tax-rules.js?v=highest-quote-tax-20261103-1';
+export const PRICE_POLICY='additive-tax-markup-20261103+highest-quote-tax-20261103-1';
 export const LOW_MARKUP=.15,HIGH_MARKUP=.30;
 export const MARKUP_FORMULA='售价÷供价−1−适用税率';
 const fraction=v=>{const m=String(v).match(/^([+-]?)(\d+)(?:\.(\d*))?(?:e([+-]?\d+))?$/i);if(!m)throw Error('无效金额');const p=(m[3]?.length||0)-Number(m[4]||0),n=BigInt((m[1]||'')+m[2]+(m[3]||''));return p>=0?[n,10n**BigInt(p)]:[n*10n**BigInt(-p),1n];};

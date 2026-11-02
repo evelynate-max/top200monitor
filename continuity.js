@@ -1,4 +1,4 @@
-import {PRICE_POLICY,LOW_MARKUP,atLeast,markupBand,summarizePrices,applyPricePolicy} from './price-policy.js?v=shouren-goods-tax-20261103';
+import {PRICE_POLICY,LOW_MARKUP,atLeast,markupBand,summarizePrices,applyPricePolicy} from './price-policy.js?v=highest-quote-tax-20261103-1';
 export const MONITORING_VERSION='daily-tax-20261103';
 const gap=(a,b)=>a&&b?Math.round((Date.parse(a)-Date.parse(b))/86400000):null;
 const pricePrefix=r=>'price:'+r.key+':';

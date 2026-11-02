@@ -1,7 +1,7 @@
-import {groupGoods,goodsStats} from './goods-view.js?v=shouren-goods-tax-20261103';
-import {PRICE_POLICY,LOW_MARKUP,markupBand,bandLabel,summarizePrices,applyPricePolicy} from './price-policy.js?v=shouren-goods-tax-20261103';
-import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js?v=shouren-goods-tax-20261103';
-import {buildContinuity,assessMarkup,markupAbnormal} from './continuity.js?v=shouren-goods-tax-20261103';
+import {groupGoods,goodsStats} from './goods-view.js?v=highest-quote-tax-20261103-1';
+import {PRICE_POLICY,LOW_MARKUP,markupBand,bandLabel,summarizePrices,applyPricePolicy} from './price-policy.js?v=highest-quote-tax-20261103-1';
+import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js?v=highest-quote-tax-20261103-1';
+import {buildContinuity,assessMarkup,markupAbnormal} from './continuity.js?v=highest-quote-tax-20261103-1';
 export const MODES=['半托','全托'];
 export const DEPS=['UDP','EU','GLO'];
 export const MODULES={supply:'供价上涨',price:'价格与加价率',limits:'限流',stock:'售罄',ads:'广告'};
