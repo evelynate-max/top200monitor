@@ -1,7 +1,8 @@
-import {groupGoods,goodsStats} from './goods-view.js?v=highest-quote-tax-20261103-1';
-import {PRICE_POLICY,LOW_MARKUP,markupBand,bandLabel,summarizePrices,applyPricePolicy} from './price-policy.js?v=highest-quote-tax-20261103-1';
-import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js?v=highest-quote-tax-20261103-1';
-import {buildContinuity,assessMarkup,markupAbnormal} from './continuity.js?v=highest-quote-tax-20261103-1';
+import {applyIdentityPolicy,IDENTITY_VERSION} from './identity-policy.js?v=identity-pet-tab-20261103-1';
+import {groupGoods,goodsStats} from './goods-view.js?v=identity-pet-tab-20261103-1';
+import {PRICE_POLICY,LOW_MARKUP,markupBand,bandLabel,summarizePrices,applyPricePolicy} from './price-policy.js?v=identity-pet-tab-20261103-1';
+import {categoryCatalog,applyPetScope,enrichReadings,STAFF_RULES} from './pet-scope.js?v=identity-pet-tab-20261103-1';
+import {buildContinuity,assessMarkup,markupAbnormal} from './continuity.js?v=identity-pet-tab-20261103-1';
 export const MODES=['半托','全托'];
 export const DEPS=['UDP','EU','GLO'];
 export const MODULES={supply:'供价上涨',price:'价格与加价率',limits:'限流',stock:'售罄',ads:'广告'};
@@ -129,7 +130,7 @@ export function normalizeWorkbook(sheets,siteRules,opts={}){
  for(const r of normalizedPrices)result.priceValues[r.key]={sell:r.sell,supply:r.supply,markup:r.markup,rawMarkup:r.rawMarkup,taxRate:r.taxRate,taxPercent:r.taxPercent,taxState:r.taxState,taxBasis:r.taxBasis,taxVersion:r.taxVersion,mode:r.mode,site:r.site,categoryId:r.categoryId,band:r.band,conflict:r.conflict,currency:r.currency,source:r.source,links:r.links};
  result.pendingPrices=normalizedPrices.filter(r=>{const f=catalog[r.goods];return !f?.categoryId||!!f.conflict;}).map(({links,...r})=>({...r,mode:'半托',dep:pools.get(r.productKey).dep,categoryStatus:catalog[r.goods]?.conflict?'类目冲突':'类目未关联'}));
  result.priceAudit={rawRows:priceRows.length,records:normalizedPrices.length,calculated:normalizedPrices.filter(r=>r.markup!=null).length,taxPending:normalizedPrices.filter(r=>r.taxRate==null).length,pendingRecords:result.pendingPrices.length,pendingGoods:new Set(result.pendingPrices.map(r=>r.goods)).size};
- applyPetScope(result,catalog,STAFF_RULES);enrichReadings(result,result.details);return result;
+ applyPetScope(result,catalog,STAFF_RULES);enrichReadings(result,result.details);applyIdentityPolicy(result);return result;
 }
 
 export function compareSnapshot(pack,previous){
@@ -162,7 +163,8 @@ export function compareSnapshot(pack,previous){
  pack.stats.priceUnknownGoods=pack.rows.filter(r=>r.priceCount&&r.markupBand==='unknown').length;pack.stats.highGoods=pack.rows.filter(r=>r.markupBand==='high').length;buildContinuity(pack,previous);
  const fields=['key','goods','mode','dep','owner','categoryId','category','seller','shop','name','limitSkus','limitSkuIds','limitSiteNames','limitSites','blocked','blockedPairs','stockSkus','stockSkuIds','stockLoss','stockDays','priceCount','lowCount','mediumCount','highCount','priceUnknown','maxMarkup','minMarkup','markupBand','monitoring','ad','inTop200'];pack.comparisonRows=(previous?.rows||[]).map(r=>({...Object.fromEntries(fields.map(f=>[f,r[f]])),issues:[...new Set((r.issues||[]).map(i=>i.module))].map(module=>({key:module,module}))}));
  const goods=groupGoods(pack.rows,{previousRows:pack.comparisonRows,previousDaily:previous?.goodsDaily,date:pack.date,referenceDate:previous?.date||'',complete:pack.complete});pack.goodsDaily=Object.fromEntries(goods.map(r=>[r.goods,r.monitoring]));pack.stats={...pack.stats,...goodsStats(pack.rows),recovered:new Set((pack.recovered||[]).map(i=>i.productKey.split(':').at(-1))).size,unverified:new Set((pack.unverified||[]).map(i=>i.productKey.split(':').at(-1))).size};
- pack.fingerprint=hashText(JSON.stringify([pack.scopeVersion,pack.continuity.version,pack.pricePolicy,pack.monitoringUniverse,pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
+ applyIdentityPolicy(pack);
+ pack.fingerprint=hashText(JSON.stringify([pack.scopeVersion,pack.continuity.version,pack.pricePolicy,pack.monitoringUniverse,IDENTITY_VERSION,pack.date,pack.sourceHash,pack.threshold,pack.complete,pack.rows.map(r=>[r.key,r.issues.map(x=>x.key)])]));return pack;
 }
 
 export function summarize(pack){const {details,siteRules,priceValues,issueIndex,pendingPrices,testExclusions,...rest}=pack;return rest;}

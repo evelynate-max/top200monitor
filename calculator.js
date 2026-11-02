@@ -1,6 +1,6 @@
-import {PRICE_POLICY,MARKUP_FORMULA} from './price-policy.js?v=highest-quote-tax-20261103-1';
-import {resolveTax} from './tax-rules.js?v=highest-quote-tax-20261103-1';
-import {BRUSH_RULES as RULES,BRUSH_CONFIG as CONFIG} from './brush-config.js?v=highest-quote-tax-20261103-1';
+import {PRICE_POLICY,MARKUP_FORMULA} from './price-policy.js?v=identity-pet-tab-20261103-1';
+import {resolveTax} from './tax-rules.js?v=identity-pet-tab-20261103-1';
+import {BRUSH_RULES as RULES,BRUSH_CONFIG as CONFIG} from './brush-config.js?v=identity-pet-tab-20261103-1';
 class Decimal{
  constructor(n,d=1n){if(n instanceof Decimal){this.n=n.n;this.d=n.d;return;}if(typeof n==='bigint'){this.n=n;this.d=d;return;}const s=String(n),parts=s.split('.');if(!/^\d+(\.\d+)?$/.test(s))throw Error('请输入有效的非负数');this.n=BigInt(parts.join(''));this.d=10n**BigInt(parts[1]?.length||0);}
  add(v){v=new Decimal(v);return new Decimal(this.n*v.d+v.n*this.d,this.d*v.d);}

@@ -1,4 +1,4 @@
-import {BRUSH_CONFIG} from './brush-config.js?v=highest-quote-tax-20261103-1';
+import {BRUSH_CONFIG} from './brush-config.js?v=identity-pet-tab-20261103-1';
 export const TAX_VERSION='highest-quote-tax-20261103-1';
 const clean=v=>String(v||'').trim().replace(/站$/,'').replace('·新','');
 export function resolveTax(context={}){

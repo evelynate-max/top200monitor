@@ -1,7 +1,7 @@
-import {goodsStats} from './goods-view.js?v=highest-quote-tax-20261103-1';
-import {PRICE_POLICY,summarizePrices} from './price-policy.js?v=highest-quote-tax-20261103-1';
-import {markupAbnormal} from './continuity.js?v=highest-quote-tax-20261103-1';
-import {STAFF_RULES,SCOPE_VERSION,STAFF_META} from './scope-rules.js?v=highest-quote-tax-20261103-1';
+import {goodsStats} from './goods-view.js?v=identity-pet-tab-20261103-1';
+import {PRICE_POLICY,summarizePrices} from './price-policy.js?v=identity-pet-tab-20261103-1';
+import {markupAbnormal} from './continuity.js?v=identity-pet-tab-20261103-1';
+import {STAFF_RULES,SCOPE_VERSION,STAFF_META} from './scope-rules.js?v=identity-pet-tab-20261103-1';
 const id=v=>v==null?'':String(v).trim().replace(/\.0$/,'');
 export {STAFF_RULES,SCOPE_VERSION,STAFF_META};
 export function scopeOwners(mode='全部',staff=STAFF_RULES){

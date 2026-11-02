@@ -1,4 +1,4 @@
-import {resolveTax} from './tax-rules.js?v=highest-quote-tax-20261103-1';
+import {resolveTax} from './tax-rules.js?v=identity-pet-tab-20261103-1';
 export const PRICE_POLICY='additive-tax-markup-20261103+highest-quote-tax-20261103-1';
 export const LOW_MARKUP=.15,HIGH_MARKUP=.30;
 export const MARKUP_FORMULA='售价÷供价−1−适用税率';
