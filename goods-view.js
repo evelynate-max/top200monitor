@@ -1,0 +1,35 @@
+const uniq=a=>[...new Set(a.filter(v=>v!==''&&v!=null))];
+const max=a=>a.length?Math.max(...a):null;
+const gap=(a,b)=>a&&b?Math.round((Date.parse(a)-Date.parse(b))/86400000):null;
+function aggregate(items){
+ const first=items[0],out={...first,key:'goods:'+first.goods,rowKeys:items.flatMap(r=>r.rowKeys||[r.key]),detailChunks:uniq(items.flatMap(r=>r.detailChunks||[r.detailChunk]))};
+ for(const field of ['mode','owner','seller','shop','shopName','sourceSeller','sourceSellerId','sellerId','category'])out[field]=uniq(items.map(r=>r[field])).join('／');
+ out.depList=uniq(items.flatMap(r=>r.depList||[r.dep]));out.dep=out.depList.join('／');out.priorOnly=items.every(r=>r.priorOnly);out.inTop200=items.some(r=>r.inTop200);
+ out.identity=items.every(r=>r.identity==='已核验')?'已核验':items.length===1?first.identity:'部分归属待核';
+ for(const field of ['priceCount','lowCount','mediumCount','highCount','priceUnknown'])out[field]=items.reduce((n,r)=>n+(r[field]||0),0);
+ out.priceSiteNames=uniq(items.flatMap(r=>r.priceSiteNames||[]));out.regional={};for(const r of items)if(r.dep){const v=out.regional[r.dep]||{limits:false,high:false,ads:false,issues:false};v.limits ||=r.limitSkus>0;v.high ||=r.highCount>0;v.ads ||=r.issues.some(i=>i.module==='ads');v.issues ||=r.issues.length>0;out.regional[r.dep]=v;}
+ out.priceBands=[out.lowCount,out.mediumCount,out.highCount,out.priceUnknown];out.abnormalCount=out.mediumCount+out.highCount;
+ out.maxMarkup=max(items.map(r=>r.maxMarkup).filter(v=>v!=null));const mins=items.map(r=>r.minMarkup).filter(v=>v!=null);out.minMarkup=mins.length?Math.min(...mins):null;
+ out.markupBand=out.highCount?'high':out.priceUnknown?'unknown':out.mediumCount?'medium':out.lowCount?'low':'unknown';
+ for(const [count,field]of [['limitSkus','limitSkuIds'],['limitSites','limitSiteNames'],['blocked','blockedPairs'],['stockSkus','stockSkuIds']]){const sets=items.filter(r=>r[count]>0).flatMap(r=>r[field]||[]);out[field]=uniq(sets);out[count]=sets.length?out[field].length:Math.max(0,...items.map(r=>r[count]||0));}
+ out.stockLoss=Math.max(0,...items.map(r=>r.stockLoss||0));out.stockDays=Math.max(0,...items.map(r=>r.stockDays||0));
+ out.issues=[...new Map(items.flatMap(r=>r.issues||[]).map(i=>[i.key,i])).values()];out.newCount=out.issues.filter(i=>i.change==='新增').length;out.expanded=items.some(r=>r.expanded);
+ out.priceChanges={};for(const r of items)for(const[k,v]of Object.entries(r.priceChanges||{}))out.priceChanges[k]=(out.priceChanges[k]||0)+v;
+ const ads=items.filter(r=>r.ad).map(r=>({...r.ad,dep:r.dep})),current=ads.filter(a=>a.covered),one=current.length===1?current[0]:null;
+ out.ad=ads.length?{...(one||{}),entries:ads,date:uniq(current.map(a=>a.date)).sort().at(-1)||ads[0].date,dataDates:uniq(current.map(a=>a.date)),covered:current.length>0,amount:current.reduce((n,a)=>n+(a.amount||0),0),week:{days:Math.max(0,...ads.map(a=>a.week?.days||0)),amount:ads.reduce((n,a)=>n+(a.week?.amount||0),0)}}:null;
+ const history=new Map;for(const r of items)for(const a of r.adHistory||[]){const old=history.get(a.date)||{};history.set(a.date,{date:a.date,covered:true,comparable:old.comparable||a.comparable,alert:old.alert||a.alert});}out.adHistory=[...history.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ out.monitoring={};for(const mod of ['limits','stock','price','ads']){const active=mod==='limits'?out.limitSkus>0:mod==='stock'?out.stockSkus>0:mod==='price'?['medium','high'].includes(out.markupBand):out.issues.some(i=>i.module==='ads'),valid=mod==='price'?out.priceCount>0&&!out.priceUnknown:mod==='ads'?current.some(a=>a.roas!=null&&a.target>0):items.some(r=>r.monitoring?.[mod]?.valid),states=items.map(r=>r.monitoring?.[mod]).filter(Boolean);out.monitoring[mod]={...(states[0]||{}),active,valid,status:active?(states.some(m=>m.status==='持续')?'持续':'新增检出'):states.some(m=>m.status==='已恢复')?'已恢复':valid?'已达标':'数据待核',consecutiveDays:active?Math.max(1,...states.filter(m=>m.active).map(m=>m.consecutiveDays||1)):0,observedDays:active?Math.max(1,...states.map(m=>m.observedDays||0)):0};}
+ return out;
+}
+export function groupGoods(rows,context={}){
+ const grouped=new Map;for(const row of rows){if(!grouped.has(row.goods))grouped.set(row.goods,[]);grouped.get(row.goods).push(row);}const result=[...grouped.values()].map(aggregate);
+ if(context.previousRows){const before=new Map(groupGoods(context.previousRows).map(r=>[r.goods,r]));for(const row of result)for(const mod of ['limits','stock','price','ads']){
+  const now=row.monitoring[mod],old=before.get(row.goods),prior=old?.monitoring?.[mod],saved=context.previousDaily?.[row.goods]?.[mod]||prior,days=gap(mod==='ads'?row.ad?.date:context.date,mod==='ads'?old?.ad?.date:context.referenceDate),valid=now.valid||(['limits','stock'].includes(mod)&&!!context.complete?.[mod]);
+  now.status=now.active?(prior?.active?'持续':context.referenceDate?'新增检出':'首次检出'):prior?.active?(valid?'已恢复':'待核实'):valid?'已达标':'数据待核';if(mod==='stock'&&row.mode==='半托')now.status='不适用';
+  now.valid=valid;now.referenceDate=context.referenceDate||'';now.dataDate=mod==='ads'?row.ad?.date||context.date:context.date;now.firstSeen=now.active?(prior?.active?saved?.firstSeen||context.referenceDate:now.dataDate):saved?.firstSeen||'';now.consecutiveDays=now.active?(prior?.active&&days===0?saved?.consecutiveDays||1:prior?.active&&days===1?(saved?.consecutiveDays||1)+1:1):0;now.observedDays=now.active?(prior?.active?(saved?.observedDays||1)+(days>0?1:0):1):0;now.missingDays=prior?.active&&now.active&&days>1?days-1:0;
+ }}
+ if(context.daily)for(const row of result)if(context.daily[row.goods])row.monitoring=context.daily[row.goods];
+ return result;
+}
+export function goodsStats(rows){const gs=groupGoods(rows);return{pool:gs.length,goods:gs.length,productRegionRows:rows.length,priceGoods:gs.filter(r=>r.priceCount).length,lowGoods:gs.filter(r=>r.markupBand==='low').length,mediumGoods:gs.filter(r=>r.markupBand==='medium').length,highGoods:gs.filter(r=>r.markupBand==='high').length,priceUnknownGoods:gs.filter(r=>r.priceCount&&r.markupBand==='unknown').length,supplyUpGoods:gs.filter(r=>r.priceChanges?.supplyUp>0||r.issues.some(i=>i.module==='supply')).length,limitGoods:gs.filter(r=>r.limitSkus).length,stockGoods:gs.filter(r=>r.stockSkus).length,stockLoss:gs.reduce((n,r)=>n+r.stockLoss,0),adsGoods:gs.filter(r=>r.ad?.covered).length,adsAlerts:gs.filter(r=>r.issues.some(i=>i.module==='ads')).length,newGoods:gs.filter(r=>r.newCount).length,unmatched:gs.filter(r=>r.identity!=='已核验').length,unassigned:gs.filter(r=>!r.owner||r.owner==='待分配').length};}
+export function mergeGoodsDetails(row,details){const d={prices:[],limits:[],stock:[],ads:[]};for(const key of row.rowKeys||[row.key])for(const field of Object.keys(d))d[field].push(...(details[key]?.[field]||[]));for(const field of Object.keys(d)){const key=r=>field==='stock'?[r.goods,r.sku].join('|'):field==='prices'?r.key:JSON.stringify(r);d[field]=[...new Map(d[field].map(r=>[key(r),r])).values()];}return d;}

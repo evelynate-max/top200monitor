@@ -1,5 +1,5 @@
-import {PRICE_POLICY,LOW_MARKUP,atLeast,markupBand,summarizePrices} from './price-policy.js?v=shouren-20261103';
-export const MONITORING_VERSION='daily-20261103';
+import {PRICE_POLICY,LOW_MARKUP,atLeast,markupBand,summarizePrices,applyPricePolicy} from './price-policy.js?v=shouren-goods-tax-20261103';
+export const MONITORING_VERSION='daily-tax-20261103';
 const gap=(a,b)=>a&&b?Math.round((Date.parse(a)-Date.parse(b))/86400000):null;
 const pricePrefix=r=>'price:'+r.key+':';
 const values=(pack,row)=>Object.entries(pack?.priceValues||{}).filter(([key])=>key.startsWith(pricePrefix(row)));
@@ -11,16 +11,22 @@ function mark(row,pack,module){
  if(module==='stock')return {active:row.stockSkus>0,valid:row.mode==='全托'&&(row.stockSkus>0||!!pack.complete?.stock),date:pack.date};
  if(module==='ads'){const a=row.ad,valid=!!a?.covered&&a.roas!=null&&a.target>0;return {active:valid&&a.roas<a.target,valid,date:a?.date||pack.date};}
  const entries=values(pack,row).map(([,p])=>p),valid=entries.length>0&&entries.every(p=>p.markup!=null);
- return {active:entries.some(p=>markupAbnormal(p,pack.threshold)),valid,date:pack.date};
+ return {active:row.markupBand?['medium','high'].includes(row.markupBand):entries.some(p=>markupAbnormal(p,pack.threshold)),valid,date:pack.date};
 }
 export function assessMarkup(pack){
  if(pack.pricePolicy===PRICE_POLICY&&pack.markupAssessment===PRICE_POLICY)return pack;
- pack.pricePolicy=PRICE_POLICY;pack.threshold=LOW_MARKUP;
+ pack.legacyMarkupRecalculated=true;pack.pricePolicy=PRICE_POLICY;pack.threshold=LOW_MARKUP;
+ for(const row of pack.rows||[])if(!['UDP','EU','GLO'].includes(row.dep))row.dep='';
+ for(const [key,p]of Object.entries(pack.priceValues||{})){const parts=key.split(':'),row=(pack.rows||[]).find(r=>r.key===parts.slice(1,4).join(':'));p.site=p.site||parts[5];applyPricePolicy(p,{mode:row?.mode||parts[1],categoryId:row?.categoryId,date:pack.date});}
+ for(const p of pack.pendingPrices||[])applyPricePolicy(p,{mode:p.mode||'半托',date:pack.date});
  for(const row of pack.rows||[]){const entries=values(pack,row),high=entries.filter(([,p])=>markupAbnormal(p,pack.threshold)),rates=entries.map(([,p])=>p.markup).filter(v=>v!=null);if(pack.pricePolicy===PRICE_POLICY)summarizePrices(row,entries.map(([,p])=>p));else{row.highCount=high.length;row.maxMarkup=rates.length?Math.max(...rates):null;}
+  if(row.monitoring)row.monitoring.price={status:high.length?'首次检出':entries.some(([,p])=>p.markup==null)?'数据待核':'已达标',active:high.length>0,valid:entries.length>0&&entries.every(([,p])=>p.markup!=null),consecutiveDays:high.length?1:0,observedDays:high.length?1:0,dataDate:pack.date,firstSeen:pack.date,ruleChanged:true};
   row.issues=(row.issues||[]).filter(i=>i.module!=='price');
   for(const [key,p] of high){const parts=key.split(':');row.issues.push({key,productKey:row.key,module:'price',sku:parts[4]||'',site:parts[5]||'',source:p.source||'',title:markupBand(p)==='high'?'高加价率':'中加价率',severity:markupBand(p)==='high'?'高':'中',dataDate:pack.date,markup:p.markup,sell:p.sell,supply:p.supply,state:'存在',change:'基线',firstSeen:pack.date,observations:1,continuous:1});}
  }
  for(const field of ['recovered','unverified'])if(pack[field])pack[field]=pack[field].filter(i=>i.module!=='price');
+ if(pack.issueIndex)pack.issueIndex=Object.fromEntries(Object.entries(pack.issueIndex).filter(([,i])=>i.module!=='price'));
+ if(pack.priceAudit){const prices=[...Object.values(pack.priceValues||{}),...(pack.pendingPrices||[])];pack.priceAudit.calculated=prices.filter(p=>p.markup!=null).length;pack.priceAudit.taxPending=prices.filter(p=>p.taxRate==null).length;}
  pack.markupAssessment=pack.pricePolicy===PRICE_POLICY?PRICE_POLICY:'strict-under-threshold-20261102';return pack;
 }
 export function buildContinuity(pack,previous){

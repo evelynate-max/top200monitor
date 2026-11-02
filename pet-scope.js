@@ -1,6 +1,7 @@
-import {PRICE_POLICY,summarizePrices} from './price-policy.js?v=shouren-20261103';
-import {markupAbnormal} from './continuity.js?v=shouren-20261103';
-import {STAFF_RULES,SCOPE_VERSION,STAFF_META} from './scope-rules.js?v=shouren-20261103';
+import {goodsStats} from './goods-view.js?v=shouren-goods-tax-20261103';
+import {PRICE_POLICY,summarizePrices} from './price-policy.js?v=shouren-goods-tax-20261103';
+import {markupAbnormal} from './continuity.js?v=shouren-goods-tax-20261103';
+import {STAFF_RULES,SCOPE_VERSION,STAFF_META} from './scope-rules.js?v=shouren-goods-tax-20261103';
 const id=v=>v==null?'':String(v).trim().replace(/\.0$/,'');
 export {STAFF_RULES,SCOPE_VERSION,STAFF_META};
 export function scopeOwners(mode='全部',staff=STAFF_RULES){
@@ -21,7 +22,7 @@ export function categoryCatalog(sheets,options={}){
 }
 export function petStats(pack){
  const rs=pack.rows,unique=new Map;for(const r of rs)if(r.stockSkus)unique.set(r.goods,Math.max(unique.get(r.goods)||0,r.stockLoss||0));
- return {pool:rs.length,goods:new Set(rs.map(r=>r.goods)).size,priceGoods:rs.filter(r=>r.priceCount).length,lowGoods:rs.filter(r=>r.markupBand==='low').length,mediumGoods:rs.filter(r=>r.markupBand==='medium').length,supplyUpGoods:rs.filter(r=>r.issues.some(i=>i.module==='supply')).length,limitGoods:rs.filter(r=>r.limitSkus).length,stockGoods:unique.size,stockLoss:[...unique.values()].reduce((a,b)=>a+b,0),adsGoods:rs.filter(r=>r.ad?.covered).length,adsAlerts:rs.filter(r=>r.issues.some(i=>i.module==='ads')).length,newGoods:rs.filter(r=>r.newCount).length,recovered:new Set((pack.recovered||[]).map(i=>i.key)).size,unverified:(pack.unverified||[]).length,unmatched:rs.filter(r=>r.identity!=='已核验').length,unassigned:rs.filter(r=>!r.owner||r.owner==='待分配').length};
+ return {pool:rs.length,goods:new Set(rs.map(r=>r.goods)).size,priceGoods:rs.filter(r=>r.priceCount).length,lowGoods:rs.filter(r=>r.markupBand==='low').length,mediumGoods:rs.filter(r=>r.markupBand==='medium').length,priceUnknownGoods:rs.filter(r=>r.priceCount&&r.markupBand==='unknown').length,supplyUpGoods:rs.filter(r=>r.issues.some(i=>i.module==='supply')).length,limitGoods:rs.filter(r=>r.limitSkus).length,stockGoods:unique.size,stockLoss:[...unique.values()].reduce((a,b)=>a+b,0),adsGoods:rs.filter(r=>r.ad?.covered).length,adsAlerts:rs.filter(r=>r.issues.some(i=>i.module==='ads')).length,newGoods:rs.filter(r=>r.newCount).length,recovered:new Set((pack.recovered||[]).map(i=>i.productKey?.split(':').at(-1))).size,unverified:new Set((pack.unverified||[]).map(i=>i.productKey?.split(':').at(-1))).size,unmatched:rs.filter(r=>r.identity!=='已核验').length,unassigned:rs.filter(r=>!r.owner||r.owner==='待分配').length};
 }
 export function applyPetScope(pack,catalog={},staff=STAFF_RULES){
  const original=pack.rows||[],audit={original:original.length,inScope:0,unknown:0,conflict:0,outside:0,excluded:[]};
@@ -32,13 +33,14 @@ export function applyPetScope(pack,catalog={},staff=STAFF_RULES){
   Object.assign(r,{categoryId:fact.categoryId,category:cat.category,owner:r.mode==='半托'?cat.half:cat.full,leader:cat.leader,categoryGroup:cat.group,categoryFamily:cat.family,ownerBasis:'叶子类目ID＋经营模式',scope:'守仁组'});
   r.warnings=(r.warnings||[]).filter(x=>x!=='负责人待分配');audit.inScope++;return true;
  });
+ const tests=pack.rows.filter(r=>r.mode==='半托'&&r.owner==='薯铃马'&&r.inTop200===false&&!r.priorOnly);if(tests.length){pack.testExclusions=tests.map(r=>({key:r.key,goods:r.goods,mode:r.mode,dep:r.dep,owner:r.owner,priceRecords:r.priceCount,reason:'半托薯铃马非Top200测试数据'}));const removed=new Set(tests.map(r=>r.key));pack.rows=pack.rows.filter(r=>!removed.has(r.key));audit.testExcluded=tests.length;audit.inScope-=tests.length;pack.testAudit={rule:'half-shuling-outside-top200',excludedGoods:new Set(tests.map(r=>r.goods)).size,excludedRows:tests.length};}else pack.testAudit=pack.testAudit||{rule:'half-shuling-outside-top200',excludedGoods:0,excludedRows:0};
  const keys=new Set(pack.rows.map(r=>r.key)),goods=new Set(pack.rows.map(r=>r.goods));
  pack.warnings=(pack.warnings||[]).filter(w=>!(w.message.match(/\d{13,}/g)||[]).some(g=>!goods.has(g)));
  for(const field of ['recovered','unverified'])if(pack[field])pack[field]=pack[field].filter(i=>keys.has(i.productKey));
  if(pack.details)pack.details=Object.fromEntries(Object.entries(pack.details).filter(([k])=>keys.has(k)));
  if(pack.issueIndex)pack.issueIndex=Object.fromEntries(Object.entries(pack.issueIndex).filter(([,i])=>keys.has(i.productKey)));
  if(pack.priceValues){const allowed=new Set(pack.rows.flatMap(r=>pack.details?.[r.key]?.prices?.map(x=>x.key)||[]));pack.priceValues=Object.fromEntries(Object.entries(pack.priceValues).filter(([k])=>allowed.size?allowed.has(k):pack.rows.some(r=>k.startsWith('price:'+r.key+':'))));}
- pack.scopeVersion=SCOPE_VERSION;pack.staffMeta=STAFF_META;pack.staffRules=staff;pack.scopeAudit=pack.scopeAudit?.original>audit.original?pack.scopeAudit:audit;pack.stats=petStats(pack);pack.stats.highGoods=pack.rows.filter(r=>r.markupBand==='high'||(!pack.pricePolicy&&r.highCount>0)).length;return pack;
+ pack.scopeVersion=SCOPE_VERSION;pack.staffMeta=STAFF_META;pack.staffRules=staff;pack.scopeAudit=pack.scopeAudit?.original>audit.original?pack.scopeAudit:audit;pack.stats={...petStats(pack),...goodsStats(pack.rows)};return pack;
 }
 export function enrichReadings(pack,details){
  for(const r of pack.rows){const d=details[r.key];if(!d)continue;const days=new Map;for(const a of d.ads||[]){if(!days.has(a.date))days.set(a.date,[]);days.get(a.date).push(a);}
