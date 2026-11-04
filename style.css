@@ -333,3 +333,4 @@ h1{font-size:25px}
 .snapshot-picker{min-width:235px;flex:0 1 300px;font-variant-numeric:tabular-nums}
 @media(max-width:900px){.filters>.filter-picker{flex:1 1 160px}}
 @media(max-width:520px){.snapshot-picker{min-width:0;width:100%;flex:1 1 100%}}
+.calculation-lines dd small{display:block;font-size:11px;line-height:1.5;color:var(--color-muted)}
