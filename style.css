@@ -310,3 +310,10 @@ h1{font-size:25px}
 
 /* Brush link prices: the three amounts needed for listing. */
 .link-price-results{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border,#30363b);border:1px solid var(--border,#30363b);margin-bottom:16px}.link-price-results>div{background:var(--panel,#101416);padding:20px;min-width:0}.link-price-results span{display:block;color:var(--muted,#9da4aa);font-size:13px;min-height:22px}.link-price-results strong{display:block;font-size:28px;line-height:1.35;font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.link-price-results strong small{font-size:14px;color:var(--muted,#9da4aa)}.link-price-results .link-price-total{grid-column:1/-1}.link-price-total strong{color:var(--accent,#ffbf3d)}.calculator-tax-settings{border-top:1px solid var(--border,#30363b);margin-top:20px;padding-top:12px}.calculator-tax-settings h3{font-size:15px;margin-bottom:12px}.calculator-tax-settings details{margin:14px 0}.calculator-parameters .calculation-lines{margin-top:16px}@media(max-width:520px){.link-price-results>div{padding:14px}.link-price-results strong{font-size:24px}}
+/* Long option lists share a searchable picker in filters and calculator fields. */
+.filter-picker summary .picker-label{color:inherit;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.form-grid .field>.filter-picker{width:100%;min-width:0;flex:none;font-size:14px}
+.form-grid .filter-picker .picker-menu{width:100%;min-width:min(280px,calc(100vw - 68px))}
+.snapshot-picker{min-width:235px;flex:0 1 300px}
+.snapshot-picker .picker-menu{right:0;left:auto}
+@media(max-width:520px){.form-grid .filter-picker .picker-menu{width:100%;min-width:0}.snapshot-picker{min-width:0;width:100%;flex:1 1 100%}}

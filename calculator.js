@@ -1,3 +1,4 @@
+import {searchableFilter} from './filter-search.js?v=search-pickers-20261105-1';
 import {applyExternalTax,externalTaxPreset} from './external-tax.js?v=brush-link-tax-20261105-1';
 import {PRICE_POLICY,MARKUP_FORMULA} from './price-policy.js?v=identity-pet-tab-20261103-1';
 import {resolveTax} from './tax-rules.js?v=identity-pet-tab-20261103-1';
@@ -44,7 +45,7 @@ export function calculateBrush(p){try{
  }catch(error){return {valid:false,reason:error.message};}}
 let form={site:'美国',mode:'半托管',platform:'Amazon',currency:'USD',supply:'',sale:'',shipping:'0'},result=null,threshold=.13;
 const field=(label,id,value,type='number',extra='')=>`<label class="field">${label}<input id="calc-${id}" type="${type}" value="${e(value)}" ${type==='number'?'min="0" step="any"':''} ${extra}></label>`;
-const select=(label,id,items,value)=>`<label class="field">${label}<select id="calc-${id}">${items.map(v=>`<option value="${e(v)}" ${v===value?'selected':''}>${e(v)}</option>`).join('')}</select></label>`;
+const select=(label,id,items,value)=>items.length>=8?`<div class="field"><span>${e(label)}</span>${searchableFilter('calc-'+id,label,items.map(v=>({value:v,label:v})),value,{targetId:'calc-'+id,ariaLabel:label,placeholder:id==='site'?'输入国家或站点名称':id==='currency'?'输入币种代码，如 USD、EUR':'输入平台名称'})}</div>`:`<label class="field">${label}<select id="calc-${id}">${items.map(v=>`<option value="${e(v)}" ${v===value?'selected':''}>${e(v)}</option>`).join('')}</select></label>`;
 function externalFields(p,vat){
  if(Number(p.parameters_confirmed?p.manual_vat:vat)===0)return '';
  const preset=externalTaxPreset(p.site,p.platform),mode=p.external_tax_mode||'auto',ship=p.external_shipping_tax||'same';
